@@ -1,0 +1,8 @@
+services:
+  sokoban:
+    build:
+      context: .
+    container_name: sokoban-game
+    ports:
+      - "8080:80"
+    restart: unless-stopped

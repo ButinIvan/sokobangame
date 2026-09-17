@@ -6,6 +6,27 @@
 
 Откройте `index.html` в любом современном браузере. Установка зависимостей и сервер не требуются.
 
+### Docker Compose
+
+```bash
+docker compose up --build -d
+```
+
+После сборки игра будет доступна по адресу <http://localhost:8080>.
+
+Остановить контейнер:
+
+```bash
+docker compose down
+```
+
+Для запуска без Compose:
+
+```bash
+docker build -t sokoban-game .
+docker run --rm -p 8080:80 sokoban-game
+```
+
 ## Управление
 
 - Стрелки или `WASD` — движение
