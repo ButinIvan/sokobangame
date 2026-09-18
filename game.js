@@ -55,11 +55,72 @@ const LEVELS = [
       " #     #",
       " #######"
     ]
+  },
+  {
+    name: "Три места",
+    map: [
+      " ########",
+      " #      #",
+      " #      #",
+      " # $$$  #",
+      " # ...  #",
+      " #   @  #",
+      " ########"
+    ]
+  },
+  {
+    name: "Два крыла",
+    map: [
+      " ########",
+      " # .  . #",
+      " #      #",
+      " # $  $ #",
+      " #      #",
+      " #  @   #",
+      " ########"
+    ]
+  },
+  {
+    name: "Южный док",
+    map: [
+      " ########",
+      " #      #",
+      " # $$$  #",
+      " #      #",
+      " # ...  #",
+      " # @    #",
+      " ########"
+    ]
+  },
+  {
+    name: "Шахматный зал",
+    map: [
+      " ########",
+      " # . .  #",
+      " #      #",
+      " # $ $  #",
+      " #   @  #",
+      " #      #",
+      " ########"
+    ]
+  },
+  {
+    name: "Большая смена",
+    map: [
+      " #########",
+      " #       #",
+      " # $$$$  #",
+      " #       #",
+      " # ....  #",
+      " #   @   #",
+      " #########"
+    ]
   }
 ];
 
 const board = document.querySelector("#board");
 const levelList = document.querySelector("#level-list");
+const randomLevelButton = document.querySelector("#random-level-button");
 const levelValue = document.querySelector("#level-value");
 const movesValue = document.querySelector("#moves-value");
 const boxesValue = document.querySelector("#boxes-value");
@@ -72,6 +133,8 @@ const nextButton = document.querySelector("#next-button");
 const replayButton = document.querySelector("#replay-button");
 
 let currentLevel = 0;
+let randomMode = false;
+let randomInitialState = null;
 let state = null;
 let history = [];
 let moves = 0;
@@ -82,8 +145,7 @@ let audioContext = null;
 
 function key(x, y) { return `${x},${y}`; }
 
-function parseLevel(levelIndex) {
-  const rows = LEVELS[levelIndex].map;
+function parseRows(rows) {
   const width = Math.max(...rows.map(row => row.length));
   const walls = new Set();
   const floors = new Set();
@@ -109,10 +171,122 @@ function parseLevel(levelIndex) {
 
 function loadLevel(index) {
   currentLevel = index;
-  state = parseLevel(index);
+  randomMode = false;
+  state = parseRows(LEVELS[index].map);
   history = [];
   moves = 0;
+  document.querySelector("#hint").textContent = "Доставьте все ящики на отмеченные места";
   render();
+}
+
+function cloneState(source) {
+  return {
+    ...source,
+    walls: new Set(source.walls),
+    floors: new Set(source.floors),
+    goals: new Set(source.goals),
+    boxes: new Set(source.boxes),
+    player: { ...source.player }
+  };
+}
+
+function shuffled(items) {
+  const copy = [...items];
+  for (let index = copy.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [copy[index], copy[swapIndex]] = [copy[swapIndex], copy[index]];
+  }
+  return copy;
+}
+
+function reachableFrom(start, boxes, floors) {
+  const visited = new Set([key(start.x, start.y)]);
+  const queue = [start];
+  const steps = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+  for (let index = 0; index < queue.length; index += 1) {
+    const current = queue[index];
+    steps.forEach(([dx, dy]) => {
+      const position = { x: current.x + dx, y: current.y + dy };
+      const positionKey = key(position.x, position.y);
+      if (floors.has(positionKey) && !boxes.has(positionKey) && !visited.has(positionKey)) {
+        visited.add(positionKey);
+        queue.push(position);
+      }
+    });
+  }
+  return visited;
+}
+
+function buildRandomState() {
+  const width = 8;
+  const height = 8;
+  const floors = new Set();
+  const walls = new Set();
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      (x === 0 || y === 0 || x === width - 1 || y === height - 1 ? walls : floors).add(key(x, y));
+    }
+  }
+
+  const candidates = [];
+  for (let y = 2; y <= height - 3; y += 1) {
+    for (let x = 2; x <= width - 3; x += 1) candidates.push({ x, y });
+  }
+  const goalsArray = shuffled(candidates).slice(0, 3);
+  const goals = new Set(goalsArray.map(position => key(position.x, position.y)));
+  const boxes = new Set(goals);
+  const freeCells = [...floors].filter(position => !boxes.has(position));
+  const [playerX, playerY] = shuffled(freeCells)[0].split(",").map(Number);
+  let player = { x: playerX, y: playerY };
+  const directionsList = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
+  for (let pull = 0; pull < 45; pull += 1) {
+    const reachable = reachableFrom(player, boxes, floors);
+    const options = [];
+    boxes.forEach(boxPosition => {
+      const [boxX, boxY] = boxPosition.split(",").map(Number);
+      directionsList.forEach(([dx, dy]) => {
+        const stance = key(boxX - dx, boxY - dy);
+        const destination = key(boxX - 2 * dx, boxY - 2 * dy);
+        if (reachable.has(stance) && floors.has(destination) && !boxes.has(destination)) {
+          options.push({ boxPosition, boxX, boxY, dx, dy, destination });
+        }
+      });
+    });
+    if (!options.length) break;
+    const choice = options[Math.floor(Math.random() * options.length)];
+    boxes.delete(choice.boxPosition);
+    boxes.add(key(choice.boxX - choice.dx, choice.boxY - choice.dy));
+    player = { x: choice.boxX - 2 * choice.dx, y: choice.boxY - 2 * choice.dy };
+  }
+
+  return { width, height, walls, floors, goals, boxes, player };
+}
+
+function loadRandomLevel() {
+  let generated = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    generated = buildRandomState();
+    if (![...generated.boxes].every(box => generated.goals.has(box))) break;
+  }
+  randomMode = true;
+  randomInitialState = cloneState(generated);
+  state = generated;
+  history = [];
+  moves = 0;
+  document.querySelector("#hint").textContent = "Случайная решаемая расстановка";
+  render();
+}
+
+function restartLevel() {
+  if (randomMode) {
+    state = cloneState(randomInitialState);
+    history = [];
+    moves = 0;
+    render();
+  } else {
+    loadLevel(currentLevel);
+  }
 }
 
 function snapshot() {
@@ -192,7 +366,7 @@ function render() {
   }
 
   const placedBoxes = [...state.boxes].filter(box => state.goals.has(box)).length;
-  levelValue.textContent = `${currentLevel + 1} / ${LEVELS.length}`;
+  levelValue.textContent = randomMode ? "Случайный" : `${currentLevel + 1} / ${LEVELS.length}`;
   movesValue.textContent = moves;
   boxesValue.textContent = `${placedBoxes} / ${state.boxes.size}`;
   undoButton.disabled = history.length === 0;
@@ -205,21 +379,26 @@ function renderLevelList() {
     const locked = index + 1 > unlocked;
     const button = document.createElement("button");
     button.type = "button";
-    button.className = `level-button${index === currentLevel ? " active" : ""}${locked ? " locked" : ""}`;
+    button.className = `level-button${!randomMode && index === currentLevel ? " active" : ""}${locked ? " locked" : ""}`;
     button.disabled = locked;
     button.innerHTML = `<span class="level-number">${String(index + 1).padStart(2, "0")}</span><span class="level-name">${level.name}</span><span class="level-status">${locked ? "&#9679;" : completed.includes(index) ? "&#10003;" : ""}</span>`;
     button.addEventListener("click", () => loadLevel(index));
     levelList.append(button);
   });
+  randomLevelButton?.classList.toggle("active", randomMode);
 }
 
 function showWin() {
-  if (!completed.includes(currentLevel)) completed.push(currentLevel);
-  unlocked = Math.min(Math.max(unlocked, currentLevel + 2), LEVELS.length);
-  localStorage.setItem("sokoban-unlocked", unlocked);
-  localStorage.setItem("sokoban-completed", JSON.stringify(completed));
+  if (!randomMode) {
+    if (!completed.includes(currentLevel)) completed.push(currentLevel);
+    unlocked = Math.min(Math.max(unlocked, currentLevel + 2), LEVELS.length);
+    localStorage.setItem("sokoban-unlocked", unlocked);
+    localStorage.setItem("sokoban-completed", JSON.stringify(completed));
+  }
   winSummary.textContent = `Все ящики на местах за ${moves} ${moveWord(moves)}.`;
-  nextButton.innerHTML = currentLevel === LEVELS.length - 1 ? "Начать сначала <span>&#8635;</span>" : "Следующий уровень <span>&rarr;</span>";
+  nextButton.innerHTML = randomMode
+    ? "Новый случайный сектор <span>&#9851;</span>"
+    : currentLevel === LEVELS.length - 1 ? "Начать сначала <span>&#8635;</span>" : "Следующий уровень <span>&rarr;</span>";
   playVictory();
   winDialog.showModal();
 }
@@ -262,7 +441,7 @@ document.addEventListener("keydown", event => {
     event.preventDefault();
     move(...directions[event.key]);
   } else if (event.key.toLowerCase() === "z") undo();
-  else if (event.key.toLowerCase() === "r") loadLevel(currentLevel);
+  else if (event.key.toLowerCase() === "r") restartLevel();
 });
 
 document.querySelectorAll("[data-direction]").forEach(button => {
@@ -283,7 +462,8 @@ board.addEventListener("pointerup", event => {
 });
 
 undoButton.addEventListener("click", undo);
-restartButton.addEventListener("click", () => loadLevel(currentLevel));
+restartButton.addEventListener("click", restartLevel);
+randomLevelButton?.addEventListener("click", loadRandomLevel);
 soundButton.addEventListener("click", () => {
   soundEnabled = !soundEnabled;
   soundButton.textContent = soundEnabled ? "♫" : "×";
@@ -292,11 +472,12 @@ soundButton.addEventListener("click", () => {
 });
 nextButton.addEventListener("click", () => {
   winDialog.close();
-  loadLevel((currentLevel + 1) % LEVELS.length);
+  if (randomMode) loadRandomLevel();
+  else loadLevel((currentLevel + 1) % LEVELS.length);
 });
 replayButton.addEventListener("click", () => {
   winDialog.close();
-  loadLevel(currentLevel);
+  restartLevel();
 });
 
 loadLevel(0);
