@@ -6,3 +6,17 @@ services:
     ports:
       - "8080:80"
     restart: unless-stopped
+
+  sokoban-blazor:
+    build:
+      context: ./Sokoban.Blazor
+    container_name: sokoban-blazor
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c 'exec 3<>/dev/tcp/127.0.0.1/8080; printf \"GET /health HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; grep -q \"200 OK\" <&3'"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
