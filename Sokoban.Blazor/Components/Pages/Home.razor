@@ -1,7 +1,110 @@
-﻿@page "/"
+@page "/"
+@using Sokoban.Blazor.Game
+@inject LevelService LevelService
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Склад 17 — Blazor Sokoban</PageTitle>
 
-<h1>Hello, world!</h1>
+<main class="game-shell">
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">17</span>
+            <div><h1>Склад 17</h1><p>Blazor Sokoban</p></div>
+        </div>
+        <div class="stats" aria-label="Статистика игры">
+            <div class="stat"><span>Уровень</span><strong>@LevelLabel</strong></div>
+            <div class="stat"><span>Ходы</span><strong id="moves-value">0</strong></div>
+            <div class="stat"><span>Ящики</span><strong id="boxes-value">@PlacedBoxes / @CurrentState.Boxes.Count</strong></div>
+        </div>
+        <div class="actions">
+            <button id="undo-button" class="icon-button" type="button" title="Отменить ход" disabled>&#8630;</button>
+            <button id="restart-button" class="icon-button" type="button" title="Начать заново">&#8635;</button>
+            <button id="sound-button" class="icon-button" type="button" title="Выключить звук">&#9835;</button>
+        </div>
+    </header>
 
-Welcome to your new app.
+    <section class="play-area">
+        <aside class="level-panel" aria-label="Выбор уровня">
+            <p class="panel-label">СЕКТОРЫ</p>
+            <nav class="level-list">
+                @foreach (var level in Levels)
+                {
+                    <button type="button" class="level-button @(CurrentLevelId == level.Id ? "active" : null)" @onclick="() => SelectLevel(level.Id)">
+                        <span class="level-number">@level.Id.ToString("00")</span>
+                        <span class="level-name">@level.Name</span>
+                    </button>
+                }
+            </nav>
+            <button class="random-level-button @(CurrentState.IsRandom ? "active" : null)" type="button" @onclick="SelectRandomLevel">
+                <span aria-hidden="true">&#9851;</span> Случайный сектор
+            </button>
+            <div class="legend">
+                <p><i class="legend-goal"></i>Место для ящика</p>
+                <p><i class="legend-box"></i>Груз</p>
+            </div>
+        </aside>
+
+        <div class="board-stage">
+            <div id="board" class="board" role="grid" aria-label="Игровое поле Sokoban" style="--cols: @CurrentState.Width; --rows: @CurrentState.Height;">
+                @for (var y = 0; y < CurrentState.Height; y++)
+                {
+                    @for (var x = 0; x < CurrentState.Width; x++)
+                    {
+                        var position = new GridPosition(x, y);
+                        <div class="@GetTileClass(position)" @key="position">
+                            @if (CurrentState.Boxes.Contains(position))
+                            {
+                                <span class="box @(CurrentState.Goals.Contains(position) ? "on-goal" : null)"></span>
+                            }
+                            @if (CurrentState.Player == position)
+                            {
+                                <span class="player"></span>
+                            }
+                        </div>
+                    }
+                }
+            </div>
+            <p class="hint">@(CurrentState.IsRandom ? "Случайная решаемая расстановка" : "Доставьте все ящики на отмеченные места")</p>
+        </div>
+
+        <aside class="control-panel">
+            <p class="panel-label">УПРАВЛЕНИЕ</p>
+            <div class="key-guide" aria-hidden="true">
+                <span></span><kbd>&uarr;</kbd><span></span>
+                <kbd>&larr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd>
+            </div>
+            <p>Стрелки или WASD</p>
+            <div class="shortcut"><kbd>Z</kbd><span>Отменить ход</span></div>
+            <div class="shortcut"><kbd>R</kbd><span>Начать заново</span></div>
+        </aside>
+    </section>
+</main>
+
+@code {
+    private IReadOnlyList<LevelDefinition> Levels { get; } = LevelCatalog.Levels;
+    private LevelState CurrentState { get; set; } = null!;
+    private int? CurrentLevelId { get; set; } = 1;
+    private string LevelLabel => CurrentState.IsRandom ? "Случайный" : $"{CurrentLevelId} / {Levels.Count}";
+    private int PlacedBoxes => CurrentState.Boxes.Count(CurrentState.Goals.Contains);
+
+    protected override void OnInitialized() => CurrentState = LevelService.GetLevel(1);
+
+    private void SelectLevel(int id)
+    {
+        CurrentLevelId = id;
+        CurrentState = LevelService.GetLevel(id);
+    }
+
+    private void SelectRandomLevel()
+    {
+        CurrentLevelId = null;
+        CurrentState = LevelService.CreateRandomLevel();
+    }
+
+    private string GetTileClass(GridPosition position)
+    {
+        if (CurrentState.Walls.Contains(position)) return "tile wall";
+        if (CurrentState.Goals.Contains(position)) return "tile goal";
+        if (CurrentState.Floors.Contains(position)) return "tile floor";
+        return "tile";
+    }
+}
