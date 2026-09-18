@@ -78,7 +78,7 @@ button { font: inherit; }
 .play-area {
   flex: 1;
   display: grid;
-  grid-template-columns: 190px minmax(320px, 1fr) 190px;
+  grid-template-columns: 230px minmax(320px, 1fr) 190px;
   align-items: center;
   gap: clamp(16px, 3vw, 48px);
   width: min(1320px, 100%);
@@ -104,7 +104,15 @@ button { font: inherit; }
 .level-button.active { color: var(--ink); background: #304346; border-color: rgba(89,195,179,0.45); }
 .level-button.locked { opacity: 0.4; cursor: not-allowed; }
 .level-number { font-weight: 800; color: var(--amber-light); }
+.level-name { flex: 1; margin: 0 9px; line-height: 1.2; }
 .level-status { font-size: 12px; }
+.random-level-button {
+  width: 100%; min-height: 42px; display: flex; align-items: center; justify-content: center; gap: 8px;
+  margin-top: 10px; padding: 0 10px; border: 1px solid rgba(233,162,59,.45); border-radius: 5px;
+  color: var(--amber-light); background: rgba(233,162,59,.08); cursor: pointer; font-weight: 700; font-size: 12px;
+}
+.random-level-button:hover, .random-level-button.active { background: rgba(233,162,59,.18); border-color: var(--amber); }
+.random-level-button span { font-size: 18px; }
 .legend { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
 .legend p { display: flex; align-items: center; gap: 9px; margin: 9px 0; color: var(--muted); font-size: 11px; }
 .legend i { width: 15px; height: 15px; display: inline-block; }
@@ -199,6 +207,7 @@ kbd {
   .level-list { grid-template-columns:repeat(5,1fr); }
   .level-button { justify-content:center; }
   .level-name, .level-status, .legend { display:none; }
+  .random-level-button { max-width: 220px; margin: 10px auto 0; }
   .control-panel { order:3; width:min(520px,100%); justify-self:center; }
   .key-guide, .control-panel > p:not(.panel-label), .shortcut { display:none; }
   .mobile-controls { display:grid; }

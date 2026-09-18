@@ -19,7 +19,7 @@
       </div>
 
       <div class="stats" aria-label="Статистика игры">
-        <div class="stat"><span>Уровень</span><strong id="level-value">1 / 5</strong></div>
+        <div class="stat"><span>Уровень</span><strong id="level-value">1 / 10</strong></div>
         <div class="stat"><span>Ходы</span><strong id="moves-value">0</strong></div>
         <div class="stat"><span>Ящики</span><strong id="boxes-value">0 / 0</strong></div>
       </div>
@@ -35,6 +35,10 @@
       <aside class="level-panel" aria-label="Выбор уровня">
         <p class="panel-label">СЕКТОРЫ</p>
         <nav id="level-list" class="level-list"></nav>
+        <button id="random-level-button" class="random-level-button" type="button">
+          <span aria-hidden="true">&#9851;</span>
+          Случайный сектор
+        </button>
         <div class="legend">
           <p><i class="legend-goal"></i>Место для ящика</p>
           <p><i class="legend-box"></i>Груз</p>
