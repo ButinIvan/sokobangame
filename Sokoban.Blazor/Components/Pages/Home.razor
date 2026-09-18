@@ -1,6 +1,9 @@
 @page "/"
 @using Sokoban.Blazor.Game
+@using Microsoft.JSInterop
 @inject LevelService LevelService
+@inject IJSRuntime JS
+@implements IAsyncDisposable
 
 <PageTitle>Склад 17 — Blazor Sokoban</PageTitle>
 
@@ -11,7 +14,7 @@
             <div><h1>Склад 17</h1><p>Blazor Sokoban</p></div>
         </div>
         <div class="stats" aria-label="Статистика игры">
-            <div class="stat"><span>Уровень</span><strong>@LevelLabel</strong></div>
+            <div class="stat"><span>Уровень</span><strong id="level-value">@LevelLabel</strong></div>
             <div class="stat"><span>Ходы</span><strong id="moves-value">0</strong></div>
             <div class="stat"><span>Ящики</span><strong id="boxes-value">@PlacedBoxes / @CurrentState.Boxes.Count</strong></div>
         </div>
@@ -28,13 +31,13 @@
             <nav class="level-list">
                 @foreach (var level in Levels)
                 {
-                    <button type="button" class="level-button @(CurrentLevelId == level.Id ? "active" : null)" @onclick="() => SelectLevel(level.Id)">
+                    <button type="button" data-level="@level.Id" class="level-button @(CurrentLevelId == level.Id ? "active" : null)" @onclick="() => SelectLevel(level.Id)">
                         <span class="level-number">@level.Id.ToString("00")</span>
                         <span class="level-name">@level.Name</span>
                     </button>
                 }
             </nav>
-            <button class="random-level-button @(CurrentState.IsRandom ? "active" : null)" type="button" @onclick="SelectRandomLevel">
+            <button id="random-level-button" class="random-level-button @(CurrentState.IsRandom ? "active" : null)" type="button" @onclick="SelectRandomLevel">
                 <span aria-hidden="true">&#9851;</span> Случайный сектор
             </button>
             <div class="legend">
@@ -44,26 +47,8 @@
         </aside>
 
         <div class="board-stage">
-            <div id="board" class="board" role="grid" aria-label="Игровое поле Sokoban" style="--cols: @CurrentState.Width; --rows: @CurrentState.Height;">
-                @for (var y = 0; y < CurrentState.Height; y++)
-                {
-                    @for (var x = 0; x < CurrentState.Width; x++)
-                    {
-                        var position = new GridPosition(x, y);
-                        <div class="@GetTileClass(position)" @key="position">
-                            @if (CurrentState.Boxes.Contains(position))
-                            {
-                                <span class="box @(CurrentState.Goals.Contains(position) ? "on-goal" : null)"></span>
-                            }
-                            @if (CurrentState.Player == position)
-                            {
-                                <span class="player"></span>
-                            }
-                        </div>
-                    }
-                }
-            </div>
-            <p class="hint">@(CurrentState.IsRandom ? "Случайная решаемая расстановка" : "Доставьте все ящики на отмеченные места")</p>
+            <div id="board" class="board" role="grid" aria-label="Игровое поле Sokoban"></div>
+            <p id="game-hint" class="hint">@(CurrentState.IsRandom ? "Случайная решаемая расстановка" : "Доставьте все ящики на отмеченные места")</p>
         </div>
 
         <aside class="control-panel">
@@ -73,38 +58,85 @@
                 <kbd>&larr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd>
             </div>
             <p>Стрелки или WASD</p>
+            <div class="mobile-controls" aria-label="Экранное управление">
+                <span></span><button type="button" data-direction="up" aria-label="Вверх">&uarr;</button><span></span>
+                <button type="button" data-direction="left" aria-label="Влево">&larr;</button>
+                <button type="button" data-direction="down" aria-label="Вниз">&darr;</button>
+                <button type="button" data-direction="right" aria-label="Вправо">&rarr;</button>
+            </div>
             <div class="shortcut"><kbd>Z</kbd><span>Отменить ход</span></div>
             <div class="shortcut"><kbd>R</kbd><span>Начать заново</span></div>
         </aside>
     </section>
 </main>
 
+<dialog id="win-dialog" class="win-dialog">
+    <div class="win-icon" aria-hidden="true">&#10003;</div>
+    <p class="eyebrow">СЕКТОР ОЧИЩЕН</p>
+    <h2>Отличная работа!</h2>
+    <p id="win-summary">Все ящики на местах.</p>
+    <button id="next-button" class="primary-button" type="button">Следующий уровень <span>&rarr;</span></button>
+    <button id="replay-button" class="text-button" type="button">Пройти ещё раз</button>
+</dialog>
+
 @code {
     private IReadOnlyList<LevelDefinition> Levels { get; } = LevelCatalog.Levels;
     private LevelState CurrentState { get; set; } = null!;
     private int? CurrentLevelId { get; set; } = 1;
+    private IJSObjectReference? _gameModule;
+    private DotNetObjectReference<Home>? _componentReference;
+    private bool _pendingLoad;
     private string LevelLabel => CurrentState.IsRandom ? "Случайный" : $"{CurrentLevelId} / {Levels.Count}";
     private int PlacedBoxes => CurrentState.Boxes.Count(CurrentState.Goals.Contains);
 
     protected override void OnInitialized() => CurrentState = LevelService.GetLevel(1);
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _gameModule = await JS.InvokeAsync<IJSObjectReference>("import", "./js/sokoban.js");
+            _componentReference = DotNetObjectReference.Create(this);
+            await _gameModule.InvokeVoidAsync("initialize", CurrentState, CurrentLevelId, _componentReference);
+        }
+        else if (_pendingLoad && _gameModule is not null)
+        {
+            _pendingLoad = false;
+            await _gameModule.InvokeVoidAsync("loadLevel", CurrentState, CurrentLevelId);
+        }
+    }
+
     private void SelectLevel(int id)
     {
         CurrentLevelId = id;
         CurrentState = LevelService.GetLevel(id);
+        _pendingLoad = true;
     }
 
     private void SelectRandomLevel()
     {
         CurrentLevelId = null;
         CurrentState = LevelService.CreateRandomLevel();
+        _pendingLoad = true;
     }
 
-    private string GetTileClass(GridPosition position)
+    [JSInvokable]
+    public LevelState GetLevelForJavaScript(int id) => LevelService.GetLevel(id);
+
+    [JSInvokable]
+    public LevelState GetRandomLevelForJavaScript() => LevelService.CreateRandomLevel();
+
+    public async ValueTask DisposeAsync()
     {
-        if (CurrentState.Walls.Contains(position)) return "tile wall";
-        if (CurrentState.Goals.Contains(position)) return "tile goal";
-        if (CurrentState.Floors.Contains(position)) return "tile floor";
-        return "tile";
+        if (_gameModule is not null)
+        {
+            try
+            {
+                await _gameModule.InvokeVoidAsync("dispose");
+                await _gameModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+        }
+        _componentReference?.Dispose();
     }
 }
