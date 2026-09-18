@@ -13,6 +13,7 @@ CHECKLIST.md
 *.userosscache
 *.sln.docstates
 .vscode/
+.dotnet-home/
 
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
